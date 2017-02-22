@@ -7,7 +7,7 @@ Welcome to **FogBank** - the National Institute of Standards and Technology's 2D
 
 The separation of touching cells in microscopy images is critical for the counting, identification and measurement of individual cells. Segmentation methods based on morphological watersheds are the current state-of-the-art for cell separation. However, over-segmentation of morphological watersheds is a major problem because of the high level of noise in microscopy cell images. We present a new segmentation method called FogBank that accurately separates cells when they are confluent and touching each other. Figure 1 illustrates segmentation outcomes for a set of algorithmic parameters.
 
-![FogBank Summary Figure](../../wiki/images/fogbank_segmentation_figure.png)
+![FogBank Summary Figure](../../wiki/imgs/fogbank_segmentation_figure.png)
 _Figure 1: Geodesic region growing for single cell edge detection starting from seed points and following the histogram percentile quantization of intensities in grayscale image and geodesic mask constraint. Images 1 to 6 are the masks generated from the 10th, 30th, 50th, 70th, 90th and 100th percentiles_
 
 ## Description
