@@ -23,7 +23,7 @@ This technique has been successfully applied to phase contrast, bright field, an
 
 ## Sample Data Sets
 
-We have an example dataset of grayscale and resulting segmented images. The segmentation parameters are included. 
+We have an example dataset of grayscale images with their resulting segmentation. The FogBank segmentation parameters are included. 
 
 The dataset can be downloaded from the following link:
 
