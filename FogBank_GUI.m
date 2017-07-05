@@ -20,14 +20,14 @@ end
 %-----------------------------------------------------------------------------------------
 warning('off','MATLAB:hg:uicontrol:ParameterValuesMustBeValid'); % suppress warnings if the sliders min and max values are both 1
 raw_images_path = [pwd filesep 'test' filesep];
-raw_images_common_name = '';
+raw_images_name_regex = '.*tif';
 raw_image_files = [];
 nb_frames = 0;
 current_frame_nb = 1;
 pre_image_loading = true;
 
 load_seed_mask_path = raw_images_path;
-load_seed_mask_common_name = raw_images_common_name;
+load_seed_mask_name_regex = raw_images_name_regex;
 use_load_seed_mask = false;
 seed_img_files = [];
 
@@ -204,8 +204,8 @@ label(options_panel, [.01 .89 .99 component_height], 'Raw Images Path:', 'left',
 input_dir_editbox = editbox(options_panel, [.01 .85 .98 component_height], raw_images_path, 'left', 'k', 'w', .6, 'normal');
 push_button(options_panel, [.5 .795 .485 component_height], 'Browse', 'center', 'k', 'default', 0.5, 'sans serif', 'bold', 'on',  {@choose_raw_images_callback} );
 
-label(options_panel, [.01 .69 .95 .05], 'Raw Common Name:', 'left', 'k', lt_gray, .6, 'sans serif', 'normal');
-common_name_editbox = editbox(options_panel, [.01 .65 .98 component_height], '', 'left', 'k', 'w', .6, 'normal');
+label(options_panel, [.01 .69 .95 .05], 'Filename Regex:', 'left', 'k', lt_gray, .6, 'sans serif', 'normal');
+common_name_editbox = editbox(options_panel, [.01 .65 .98 component_height], raw_images_name_regex, 'left', 'k', 'w', .6, 'normal');
 
   function choose_raw_images_callback(varargin)
     % get directory
@@ -238,13 +238,14 @@ push_button(options_panel, [.1 .49 .8 1.5*component_height], 'Load Images', 'cen
     if raw_images_path(end) ~= filesep
       raw_images_path = [raw_images_path filesep];
     end
-    raw_images_common_name = get(common_name_editbox, 'string');
+    raw_images_name_regex = get(common_name_editbox, 'string');
     
-    if ~isempty(raw_images_common_name)
-      raw_image_files = dir([raw_images_path '*' raw_images_common_name '*.tif']);
-    else
-      raw_image_files = dir([raw_images_path '*.tif']);
-    end
+    file_names = dir([raw_images_path '*']);
+    tmp_file_names = {file_names.name}';
+    match_idx = regexp(tmp_file_names, raw_images_name_regex);
+    match_idx = ~cellfun(@isempty, match_idx);
+    raw_image_files = file_names(match_idx);
+    
     nb_frames = length(raw_image_files);
     if nb_frames <= 0
       errordlg('Chosen img folder doesn''t contain any .tif images.');
@@ -656,15 +657,15 @@ fg_import_checkbox2 = checkbox(fg_options_panel2, [.05 .94 .8 component_height],
 set(fg_import_checkbox2, 'value',fg_import_masks);
 
 fg_mask_path = [pwd filesep 'test' filesep];
-fg_common_name = '';
+fg_name_regex = '.*tif';
 fg_img_files = [];
 
 label(fg_options_panel2, [.01 .86 .99 component_height], 'Foreground Mask Path:', 'left', 'k', lt_gray, .6, 'sans serif', 'normal');
 fg_input_dir_editbox = editbox(fg_options_panel2, [.01 .8 .98 component_height], fg_mask_path, 'left', 'k', 'w', .6, 'normal');
 push_button(fg_options_panel2, [.5 .74 .485 component_height], 'Browse', 'center', 'k', 'default', 0.5, 'sans serif', 'bold', 'on',  {@choose_fg_images_callback} );
 
-label(fg_options_panel2, [.01 .62 .95 component_height], 'Foreground Mask Common Name:', 'left', 'k', lt_gray, .6, 'sans serif', 'normal');
-fg_common_name_editbox = editbox(fg_options_panel2, [.01 .58 .98 component_height], fg_common_name, 'left', 'k', 'w', .6, 'normal');
+label(fg_options_panel2, [.01 .62 .95 component_height], 'Foreground Name Regex:', 'left', 'k', lt_gray, .6, 'sans serif', 'normal');
+fg_common_name_editbox = editbox(fg_options_panel2, [.01 .58 .98 component_height], fg_name_regex, 'left', 'k', 'w', .6, 'normal');
 
   function choose_fg_images_callback(varargin)
     % get directory
@@ -883,10 +884,17 @@ colors_vector = 0;
         fg_mask_path = [fg_mask_path filesep];
       end
       
-      fg_common_name = get(fg_common_name_editbox, 'String');
+      fg_name_regex = get(fg_common_name_editbox, 'String');
+      
+      file_names = dir([fg_name_regex '*']);
+    tmp_file_names = {file_names.name}';
+    match_idx = regexp(tmp_file_names, load_seed_mask_name_regex);
+    match_idx = ~cellfun(@isempty, match_idx);
+    fg_img_files = file_names(match_idx);
+      
       
       % validate that the number of images matches
-      fg_img_files = dir([fg_mask_path '*' fg_common_name '*.tif']);
+      fg_img_files = dir([fg_mask_path '*' fg_name_regex '*.tif']);
       nb_fg_frames = length(fg_img_files);
       if nb_fg_frames == 1
         stats = imfinfo([fg_mask_path fg_img_files(img_nb).name]);
@@ -1274,7 +1282,7 @@ save_pb = push_button(os_options_panel, [.1 .01 .78 1.2*component_height], 'Save
         if fg_import_masks
           % if the foreground mask was loaded from disk
           fprintf(fh,'Foreground Mask Path: %s\n',fg_mask_path);
-          fprintf(fh,'Foreground Common Name: %s\n',fg_common_name);
+          fprintf(fh,'Foreground Common Name: %s\n',fg_name_regex);
         else
           % if the foreground mask was segmented in the GUI
           fprintf(fh,'Min Cell Area: %d\n',fg_min_object_size);
@@ -2418,8 +2426,8 @@ label(seed_load_options_panel, [.01 .9 .99 component_height], 'Seed Mask Image(s
 seed_input_dir_editbox = editbox(seed_load_options_panel, [.01 .84 .98 component_height], load_seed_mask_path, 'left', 'k', 'w', .6, 'normal');
 push_button(seed_load_options_panel, [.5 .78 .485 component_height], 'Browse', 'center', 'k', 'default', 0.5, 'sans serif', 'bold', 'on',  {@choose_seed_images_callback} );
 
-label(seed_load_options_panel, [.01 .68 .95 component_height], 'Seed Common Name:', 'left', 'k', lt_gray, .6, 'sans serif', 'normal');
-seed_common_name_editbox = editbox(seed_load_options_panel, [.01 .62 .98 component_height], load_seed_mask_common_name, 'left', 'k', 'w', .6, 'normal');
+label(seed_load_options_panel, [.01 .68 .95 component_height], 'Seed Name Regex:', 'left', 'k', lt_gray, .6, 'sans serif', 'normal');
+seed_common_name_editbox = editbox(seed_load_options_panel, [.01 .62 .98 component_height], load_seed_mask_name_regex, 'left', 'k', 'w', .6, 'normal');
 
   function choose_seed_images_callback(varargin)
     % get directory
@@ -2492,8 +2500,14 @@ push_button(seed_load_options_panel, [.01 .01 .49 component_height], 'Apply', 'c
       load_seed_mask_path = [load_seed_mask_path filesep];
     end
     
-    load_seed_mask_common_name = get(seed_common_name_editbox, 'String');
-    seed_img_files = dir([load_seed_mask_path '*' load_seed_mask_common_name '*.tif']);
+    load_seed_mask_name_regex = get(seed_common_name_editbox, 'String');
+    
+    file_names = dir([load_seed_mask_path '*']);
+    tmp_file_names = {file_names.name}';
+    match_idx = regexp(tmp_file_names, load_seed_mask_name_regex);
+    match_idx = ~cellfun(@isempty, match_idx);
+    seed_img_files = file_names(match_idx);
+    
     nb_seed_frames = length(seed_img_files);
     if nb_seed_frames ~= nb_frames
       errordlg('Chosen seed image folder doesn''t the same number of .tif images as the images being segmented.');
@@ -2534,10 +2548,15 @@ axis off; axis image;
       load_seed_mask_path = [load_seed_mask_path filesep];
     end
     
-    load_seed_mask_common_name = get(seed_common_name_editbox, 'String');
+    load_seed_mask_name_regex = get(seed_common_name_editbox, 'String');
+    
+    file_names = dir([load_seed_mask_path '*']);
+    tmp_file_names = {file_names.name}';
+    match_idx = regexp(tmp_file_names, load_seed_mask_name_regex);
+    match_idx = ~cellfun(@isempty, match_idx);
+    seed_img_files = file_names(match_idx);
     
     % validate that the number of images matches
-    seed_img_files = dir([load_seed_mask_path '*' load_seed_mask_common_name '*.tif']);
     nb_seed_frames = length(seed_img_files);
     if nb_seed_frames == 1
       stats = imfinfo([load_seed_mask_path seed_img_files(current_frame_nb).name]);
