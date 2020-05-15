@@ -31,6 +31,8 @@ image_out = image_in;
 % Get the image dimensions
 [nb_rows, nb_cols] = size(image_out);
 
+% TODO this whole loop can be accelerated by computing the bounding boxes of each labeled object, and then iterating over those boxes, extracting the labeled subregion, performing the dominant neighbor math, and then overwriting the main image where appropriate. Avoids many unnecessary calls to bwlabel with the full image.
+
 % print_update(1,1,Highest_cell_number);
 % Scout all the objects in image_out
 for k = 1:Highest_cell_number
@@ -39,7 +41,7 @@ for k = 1:Highest_cell_number
   image_b = image_out == k;
   
   % label the bodies in the binay image
-  [labeled_image, nb_objects] = bwlabel(image_b);
+  [labeled_image, nb_objects] = bwlabel(image_b, 4);
   
   % if only one body found: continue
   if nb_objects == 1, continue, end
@@ -58,34 +60,42 @@ for k = 1:Highest_cell_number
   body_neighbors = zeros(Highest_cell_number, nb_objects);
   
   % Scout all labeled_image looking for the neighbors (in image_out) of each body except the winner body
-  for j = 2:nb_cols-1
-    for i = 2:nb_rows-1
+  for j = 1:nb_cols
+    for i = 1:nb_rows
       
       % if pixel(i,j) is a background pixel in labeled_image or belongs to the winner body: continue
       if labeled_image(i,j) == 0 || labeled_image(i,j) == winner_body, continue, end
       
       % Check if the left neighbor pixel is not the background and is not object k in image_out
-      pixel = image_out(i,j-1);
-      if pixel > 0 && pixel ~= k
-        body_neighbors(pixel, labeled_image(i,j)) = body_neighbors(pixel, labeled_image(i,j)) + 1;
+      if j-1 >= 1
+        pixel = image_out(i,j-1);
+        if pixel > 0 && pixel ~= k
+          body_neighbors(pixel, labeled_image(i,j)) = body_neighbors(pixel, labeled_image(i,j)) + 1;
+        end
       end
       
       % Check if the top neighbor pixel is not the background and is not object k in image_out
-      pixel = image_out(i-1,j);
-      if pixel > 0 && pixel ~= k
-        body_neighbors(pixel, labeled_image(i,j)) = body_neighbors(pixel, labeled_image(i,j)) + 1;
+      if i-1 >= 1
+        pixel = image_out(i-1,j);
+        if pixel > 0 && pixel ~= k
+          body_neighbors(pixel, labeled_image(i,j)) = body_neighbors(pixel, labeled_image(i,j)) + 1;
+        end
       end
       
       % Check if the right neighbor pixel is not the background and is not object k in image_out
-      pixel = image_out(i,j+1);
-      if pixel > 0 && pixel ~= k
-        body_neighbors(pixel, labeled_image(i,j)) = body_neighbors(pixel, labeled_image(i,j)) + 1;
+      if j+1 <= nb_cols
+        pixel = image_out(i,j+1);
+        if pixel > 0 && pixel ~= k
+          body_neighbors(pixel, labeled_image(i,j)) = body_neighbors(pixel, labeled_image(i,j)) + 1;
+        end
       end
       
       % Check if the top neighbor pixel is not the background and is not object k in image_out
-      pixel = image_out(i+1,j);
-      if pixel > 0 && pixel ~= k
-        body_neighbors(pixel, labeled_image(i,j)) = body_neighbors(pixel, labeled_image(i,j)) + 1;
+      if i+1 <= nb_rows
+        pixel = image_out(i+1,j);
+        if pixel > 0 && pixel ~= k
+          body_neighbors(pixel, labeled_image(i,j)) = body_neighbors(pixel, labeled_image(i,j)) + 1;
+        end
       end
     end
   end

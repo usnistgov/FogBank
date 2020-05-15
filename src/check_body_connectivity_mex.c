@@ -48,7 +48,7 @@ int ij_to_lin(int i, int j, int m) {
 void generate_sub_mask(mxLogical *mini_mask, const int *image_in, int i_min, int i_max, int j_min, int j_max, int m, int obj_nb);
 void generate_sub_image(int *mini_mask, const int *image_in, int i_min, int i_max, int j_min, int j_max, int m);
 int* unique(const int *list_in, int *nb_elements, int modulo);
-void image_features(int *edgeImage, const int nb_cells, const int *cell_nbs, int *bounding_box, const int *imageIn, const int m, const int n);
+void image_features(const int nb_cells, const int *cell_nbs, int *bounding_box, const int *imageIn, const int m, const int n);
 
 
 /* Matlab Interface Function */
@@ -56,8 +56,8 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
     
     /* Declare local variables */
     double *labeled_mini_image;
-    int *image_in, *image_out, *mini_edge_image, *object_size, *body_neighbors, *max_neighbors, *neighbor_winner;
-    int *edge_image, *cell_nbs, *bounding_box;
+    int *image_in, *image_out, *object_size, *body_neighbors, *max_neighbors, *neighbor_winner;
+    int *cell_nbs, *bounding_box;
     mxLogical *mask;
     mxArray *mask_array, *connectivity, *bwlabel_call[2], *bwlabel_return[2];
     int m, n, highest_obj_nb, nb_objects, obj_nb, bwlabel_return_status;
@@ -183,10 +183,9 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
     highest_obj_nb = cell_nbs[nb_cells-1];
     
     /* setup and call image features to extract bounding boxes and edge image */
-    edge_image = calloc(m*n, sizeof(int));
     bounding_box = calloc(highest_obj_nb*4, sizeof(int));
     /* call image features to extract the basic data */
-    image_features(edge_image, nb_cells, cell_nbs, bounding_box, image_in, m, n);
+    image_features(nb_cells, cell_nbs, bounding_box, image_in, m, n);
     
     highest_obj_nb++;
     /* loop over the currently labeled objects in the image */
@@ -241,12 +240,6 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
         /* if there is only 1 object in the image, continue */
         if(nb_objects > 1) {
             
-            /* generate the mini edge image */
-            mini_edge_image = calloc(mini_m*mini_n, sizeof(int));
-            if(mini_edge_image == NULL)
-                mexErrMsgTxt("Error: out of heap space\n");
-            generate_sub_image(mini_edge_image, image_in, i_min, i_max, j_min, j_max, m);
-            
             /* increment nb_objects to allow using it as lookup table */
             nb_objects++;
             /* calculate the object size of each labeled objects */
@@ -261,7 +254,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
             winner_body = 0; max_val = 0;
             for(k = 1; k < nb_objects; k++) {
                 if(object_size[k] > max_val) {
-                    max_val = object_size[k];
+                    max_val = object_size[k]; 
                     winner_body = k;
                 }
             }
@@ -271,38 +264,43 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
             body_neighbors = calloc(highest_obj_nb*nb_objects, sizeof(int));
             /* loop over the edge pixels of image out mask */
             for(k = 0; k < mini_m*mini_n; k++) {
-                if(mini_edge_image[k] == 0 || ((int)labeled_mini_image[k]) == winner_body) /* if this is not an edge pixel, or it is part of the winner body skip it */
+                if(labeled_mini_image[k] == 0 || ((int)labeled_mini_image[k]) == winner_body) /* if this is a background pixel, or it is part of the winner body skip it */
                     continue;
                 /* convert the linear index into (i,j), adjust i,j coords to refer to the full image */
                 divresult = div (k,mini_m);
                 j = (int)divresult.quot + j_min;
-                i = (int)divresult.rem + i_min;
-                if(i == 0 || j == 0 || i == (m-1) || j == (n-1)) /* if it is an edge pixel skip it */
-                    continue;
-                
+                i = (int)divresult.rem + i_min;                
                 
                 /* Check if the left neighbor pixel is not the background and is not object k in image_out */
-                pixel = image_out[ij_to_lin(i,j-1,m)];
-                if(pixel > 0 && pixel != obj_nb) {
-                    body_neighbors[pixel + highest_obj_nb*((int)labeled_mini_image[k])]++;
+                if ((j-1) >= 0) {
+                    pixel = image_out[ij_to_lin(i,j-1,m)];
+                    if(pixel > 0 && pixel != obj_nb) {
+                        body_neighbors[pixel + highest_obj_nb*((int)labeled_mini_image[k])]++;
+                    }
                 }
                 
                 /* Check if the top neighbor pixel is not the background and is not object k in image_out */
-                pixel = image_out[ij_to_lin(i-1,j,m)];
-                if(pixel > 0 && pixel != obj_nb) {
-                    body_neighbors[pixel + highest_obj_nb*((int)labeled_mini_image[k])]++;
+                if((i-1) > 0) {
+                    pixel = image_out[ij_to_lin(i-1,j,m)];
+                    if(pixel > 0 && pixel != obj_nb) {
+                        body_neighbors[pixel + highest_obj_nb*((int)labeled_mini_image[k])]++;
+                    }
                 }
                 
                 /* Check if the right neighbor pixel is not the background and is not object k in image_out */
-                pixel = image_out[ij_to_lin(i,j+1,m)];
-                if(pixel > 0 && pixel != obj_nb) {
-                    body_neighbors[pixel + highest_obj_nb*((int)labeled_mini_image[k])]++;
+                if((j+1) < n) {
+                    pixel = image_out[ij_to_lin(i,j+1,m)];
+                    if(pixel > 0 && pixel != obj_nb) {
+                        body_neighbors[pixel + highest_obj_nb*((int)labeled_mini_image[k])]++;
+                    }
                 }
                 
                 /* Check if the bottom neighbor pixel is not the background and is not object k in image_out */
-                pixel = image_out[ij_to_lin(i+1,j,m)];
-                if(pixel > 0 && pixel != obj_nb) {
-                    body_neighbors[pixel + highest_obj_nb*((int)labeled_mini_image[k])]++;
+                if((i+1) < m) {
+                    pixel = image_out[ij_to_lin(i+1,j,m)];
+                    if(pixel > 0 && pixel != obj_nb) {
+                        body_neighbors[pixel + highest_obj_nb*((int)labeled_mini_image[k])]++;
+                    }
                 }
             } /* end for loop */
             
@@ -341,7 +339,6 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
             free(body_neighbors);
             free(neighbor_winner);
             free(max_neighbors);
-            free(mini_edge_image);
             
         } /* end if(nb_objects > 1) */
         
@@ -350,7 +347,6 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
     } /* end for loop over the labeled objects in image_in */
     
     /* free image features memory */
-    free(edge_image);
     free(cell_nbs);
     free(bounding_box);
     
@@ -388,7 +384,7 @@ void generate_sub_image(int *mini_mask, const int *image_in, int i_min, int i_ma
     }
 }
 
-void image_features(int *edgeImage, const int nb_cells, const int *cell_nbs, int *bounding_box, const int *imageIn, const int m, const int n) {
+void image_features(const int nb_cells, const int *cell_nbs, int *bounding_box, const int *imageIn, const int m, const int n) {
     
     register int k;
     int label, ii, i, j;
@@ -463,17 +459,6 @@ void image_features(int *edgeImage, const int nb_cells, const int *cell_nbs, int
             if(j > bounding_box[ii])
                 bounding_box[ii] = j;
             
-            /* check for perimeter pixel */
-            label = imageIn[k];
-            if(i==0 || j==0 || i==(m-1) || j==(n-1) ||
-                    imageIn[k-1]!=label || imageIn[k+1]!=label || imageIn[k-m]!=label || imageIn[k+m]!=label ||
-                    imageIn[k-1-m]!=label || imageIn[k-1+m]!=label || imageIn[k+1-m]!=label || imageIn[k+1+m]!=label) {
-                /* was a edge pixel */
-                
-                /* update edge image */
-                edgeImage[k] = imageIn[k];
-                
-            }
         } /* end if(imageIn[k] != 0) */
     } /* end for(k = 0; k < nb_elements; k++) */
     
